@@ -1,0 +1,114 @@
+---
+title: "FinalProjectWeek4"
+author: "Mateo Córdoba Toro"
+date: "25/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, results='hide'}
+library(dplyr)
+library(caret)
+
+
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+training <- training[,!(names(training) %in% c('X','user_name',"raw_timestamp_part_1","raw_timestamp_part_2") )]
+test <- test[,!(names(training) %in% c('X','user_name',"raw_timestamp_part_1","raw_timestamp_part_2") )]
+```
+
+
+The first part of the process is to perform a data cleaning, a function is built to detect the percentage of missing values in the data set.
+```{r}
+
+na.percent <- function(x){
+  sum(is.na(x))/length(x)
+}
+
+
+x <- sapply(training, na.percent)
+x <- names(x[x>0])
+x
+```
+
+It is found that many of the variables  present an exaggerated amount of missing values, approximately 97%, which is why they are omitted. Additionally, variables that provide very little variance are filtered.
+
+```{r}
+training <- training[,!(names(training)%in%x)]
+testing <- test[,!(names(training)%in%x)]
+vars <- names(training)[nearZeroVar(training)]
+vars
+```
+
+After performing the cleaning process, the data within the data set is divided into a training set and a validation set, since the amount of data that is presented for training is very few.
+
+
+```{r}
+training <- training[,!(names(training) %in% vars)]
+testing  <- test[,!(names(training) %in% vars)]
+set.seed(123)
+
+index <- createDataPartition(training$classe, p = 0.5, list = FALSE)
+sub.train <- training[index,]
+sub.test  <- training[-index,]
+```
+
+# MODEL1: DESICION TREE
+
+The first model to be estimated is a decision tree model, The decision matrix shows the degree of successes it presents, showing a high precision in the classification.
+
+```{r}
+model1 <- rpart::rpart(classe~., data = sub.train, method = "class")
+pred1  <- predict(model1, sub.test, type = "class")
+table(pred1,sub.test$classe)
+```
+As can be seen, the model is almost correct in its entirety, with a accurancy of 83%.
+
+```{r}
+sum(diag(table(pred1,sub.test$classe)))/length(sub.test$classe)
+
+```
+
+
+
+# MODEL2: RANDON FOREST 
+
+The second model to estimate a random forest, with cross validation.
+
+```{r}
+controlRF <- trainControl(method="cv", number=5)
+model2 <- train(classe ~ ., data=sub.train, method="rf", trControl = controlRF)
+```
+
+
+It can be seen that the precision of the model improves substantially, placing it at 99% precision.
+
+```{r}
+rfPrediction <- predict(model2, sub.test)
+table(sub.test$classe, rfPrediction)
+sum(diag(table(rfPrediction,sub.test$classe)))/length(sub.test$classe)
+
+```
+
+
+```{r}
+dt.test <- predict(model1,testing, type = "class")
+rfPrediction.test <- predict(model2, testing)
+
+data.frame(DECISION.TREE = as.character(dt.test),
+           RANDOM.FOREST = as.character(rfPrediction.test),
+           COINCIDENCE = dt.test == rfPrediction.test)
+```
+
+#Conclusion.
+
+The model estimated by random forest is taken since in the validation it presents a higher precision than model 1, the models represent a 75% coincidence, so the results of the decision tree also seem to be good but not as precise as the estimated by random forest.
+
+
+
+
